@@ -1,0 +1,122 @@
+// ──────────────────────────────────────────────────────────────────────────────
+// schema.prisma
+// Define el modelo de datos de la aplicación SecureApp.
+// Proveedor: PostgreSQL (conexión via variable de entorno DATABASE_URL).
+//
+// Modelos:
+//   User           — Usuarios del sistema con rol asignado
+//   Role           — Roles (p.ej. SuperAdmin, Admin, Viewer)
+//   Permission     — Permisos atómicos (p.ej. VIEW_USERS, CREATE_PRODUCT)
+//   RolePermission — Tabla pivot que asocia múltiples permisos a un rol
+//   Product        — Productos del inventario
+//   AuditLog       — Registro de eventos de seguridad (RF-06)
+//   LoginAttempt   — Intentos de login para rate limiting persistente (RS-07)
+//   RevokedToken   — Blacklist de tokens JWT inválidados al hacer logout
+// ──────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Usuario del sistema ───────────────────────────────────────────────────────
+// Cada usuario pertenece a exactamente un rol. La contraseña siempre se
+// almacena hasheada con bcrypt (nunca en texto plano — RF-02).
+model User {
+  id          Int       @id @default(autoincrement())
+  username    String    @unique
+  password    String                // Hash bcrypt (cost ≥ 12)
+  email       String    @unique
+  roleId      Int
+  role        Role      @relation(fields: [roleId], references: [id])
+  lastLoginAt DateTime?             // Última vez que el usuario inició sesión
+  lastLoginIp String?               // IP desde la que realizó el último login
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  auditLogs   AuditLog[]
+}
+
+// ── Rol ───────────────────────────────────────────────────────────────────────
+// Los roles agrupan permisos. La relación con permisos es de muchos-a-muchos
+// a través de RolePermission.
+model Role {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique  // Ej: 'SuperAdmin', 'Admin', 'Viewer'
+  users       User[]
+  permissions RolePermission[]
+}
+
+// ── Permiso ───────────────────────────────────────────────────────────────────
+// Acciones atómicas que pueden asignarse a roles (p.ej. VIEW_USERS, CREATE_PRODUCT).
+// La validación de permisos se realiza en el backend (RF-05).
+model Permission {
+  id              Int              @id @default(autoincrement())
+  name            String           @unique  // Ej: 'VIEW_USERS', 'DELETE_PRODUCT'
+  rolePermissions RolePermission[]
+}
+
+// ── Tabla pivot Rol-Permiso ───────────────────────────────────────────────────
+// Clave compuesta (roleId, permissionId) garantiza unicidad de la asociación.
+// onDelete: Cascade asegura limpieza automática si se borra un rol o permiso.
+model RolePermission {
+  roleId       Int
+  permissionId Int
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+// ── Producto del inventario ───────────────────────────────────────────────────
+// RF-03: CRUD de productos. El código es único por producto.
+// El precio usa Decimal(10,2) para precisión monetaria.
+model Product {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique       // Código alfanumérico único del producto
+  name        String
+  description String?               // Descripción opcional
+  quantity    Int                   // Stock disponible (entero ≥ 0)
+  price       Decimal  @db.Decimal(10, 2)  // Precio con 2 decimales
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ── Log de auditoría ──────────────────────────────────────────────────────────
+// RF-06: Registra todos los eventos de seguridad con timestamp, IP y ruta.
+// userId es nullable para eventos sin sesión activa (p.ej. intentos de login fallidos).
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?                    // null si el evento ocurrió sin sesión activa
+  user      User?    @relation(fields: [userId], references: [id])
+  event     String                  // Identificador del evento (p.ej. 'LOGIN_SUCCESS')
+  details   String?                 // Descripción adicional del evento
+  ipAddress String                  // IP de origen de la petición
+  path      String?                 // Ruta HTTP que generó el evento
+  createdAt DateTime @default(now())
+}
+
+// ── Intentos de login ─────────────────────────────────────────────────────────
+// RS-07: Rate limiting persistente en BD. Registra cada intento (exitoso o no)
+// para bloquear usuarios/IPs con demasiados fallos consecutivos.
+// Los registros antiguos (> 1 hora) son eliminados periódicamente.
+model LoginAttempt {
+  id         Int      @id @default(autoincrement())
+  identifier String                  // Nombre de usuario intentado
+  ipAddress  String                  // IP del cliente
+  success    Boolean                 // true = login exitoso
+  createdAt  DateTime @default(now())
+}
+
+// ── Tokens JWT revocados (blacklist) ─────────────────────────────────────────
+// Mejora #2: Almacena tokens invalidados al hacer logout para evitar su
+// reutilización hasta que expiren naturalmente. Se limpian periódicamente.
+model RevokedToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique          // JWT completo (único)
+  expiresAt DateTime                  // Fecha de expiración original del token
+  createdAt DateTime @default(now())
+}
