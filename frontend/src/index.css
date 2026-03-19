@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background-color: #070a10;
+  color: #cdd6e8;
+  font-family: 'Sora', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0d1420; }
+::-webkit-scrollbar-thumb { background: #1a2540; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #243352; }
+
+::selection { background: rgba(67, 97, 238, 0.35); color: #fff; }
+
+@layer components {
+  .card {
+    @apply bg-base-50 border border-base-200 rounded-xl shadow-card;
+  }
+  .btn-primary {
+    @apply bg-accent hover:bg-accent/90 text-white font-medium px-4 py-2 rounded-lg
+           transition-all duration-200 hover:shadow-glow active:scale-[0.98] disabled:opacity-40
+           disabled:cursor-not-allowed flex items-center gap-2;
+  }
+  .btn-ghost {
+    @apply bg-transparent hover:bg-base-100 text-tx-secondary hover:text-tx-primary
+           font-medium px-4 py-2 rounded-lg transition-all duration-200 flex items-center gap-2;
+  }
+  .btn-danger {
+    @apply bg-danger/10 hover:bg-danger/20 text-danger border border-danger/30
+           font-medium px-4 py-2 rounded-lg transition-all duration-200 flex items-center gap-2;
+  }
+  .input-field {
+    @apply w-full bg-base-100 border border-base-200 rounded-lg px-3 py-2.5
+           text-tx-primary placeholder-tx-muted font-sans text-sm
+           focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40
+           transition-all duration-200;
+  }
+  .table-row {
+    @apply border-b border-base-200 hover:bg-base-50/50 transition-colors duration-150;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium font-mono;
+  }
+  .section-title {
+    @apply text-lg font-semibold text-tx-primary tracking-tight;
+  }
+  .label {
+    @apply text-xs font-medium text-tx-secondary uppercase tracking-wider;
+  }
+}
