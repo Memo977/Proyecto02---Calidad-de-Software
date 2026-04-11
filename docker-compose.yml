@@ -1,0 +1,75 @@
+version: '3.8'
+
+# ──────────────────────────────────────────────────────────────────────────────
+# docker-compose.yml
+# Orquesta los tres servicios de la aplicación SecureApp:
+#   - db       → Base de datos PostgreSQL 16
+#   - backend  → API REST Node.js/Express (puerto 4000)
+#   - frontend → SPA React servida por Nginx (puerto 80)
+#
+# Uso:
+#   docker compose up --build   # Primera vez o tras cambios en el código
+#   docker compose up -d        # Modo background
+#   docker compose down -v      # Detener y borrar volúmenes
+#
+# IMPORTANTE: Cambiar JWT_SECRET y COOKIE_SECRET antes de desplegar en producción.
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Base de datos PostgreSQL ─────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine          # Imagen oficial ligera de PostgreSQL 16
+    container_name: proyecto2_db
+    restart: unless-stopped            # Se reinicia salvo que se detenga manualmente
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123   # Cambiar en producción
+      POSTGRES_DB: proyecto2_db
+    ports:
+      - "5432:5432"                    # Expone el puerto solo para desarrollo local
+    volumes:
+      - pgdata:/var/lib/postgresql/data  # Persiste los datos entre reinicios del contenedor
+    healthcheck:
+      # El backend espera a que este healthcheck pase antes de arrancar (depends_on)
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Backend (API REST) ───────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: proyecto2_backend
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      DATABASE_URL: "postgresql://postgres:postgres123@db:5432/proyecto2_db"
+      # ⚠️  Cambiar estos secretos antes de desplegar en producción
+      JWT_SECRET: "docker_jwt_secret_cambia_en_produccion_32chars!!"
+      COOKIE_SECRET: "docker_cookie_secret_cambia_en_produccion!!"
+      NODE_ENV: "production"
+      PORT: 4000
+      FRONTEND_URL: "http://localhost"  # URL del frontend para la política CORS
+    depends_on:
+      db:
+        condition: service_healthy      # Espera a que PostgreSQL esté listo
+
+  # ── Frontend (SPA React + Nginx) ─────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: proyecto2_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"                         # Sirve la app en http://localhost
+    depends_on:
+      - backend                         # Espera a que el backend esté levantado
+
+# ── Volúmenes persistentes ────────────────────────────────────────────────────
+volumes:
+  pgdata:   # Volumen nombrado para los datos de PostgreSQL
