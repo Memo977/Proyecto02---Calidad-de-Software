@@ -1,0 +1,338 @@
+{
+  "info": {
+    "name": "SecureApp API",
+    "description": "Colección completa de la API REST del Proyecto 2 — ISW-1013 2026.\nTodos los endpoints requieren autenticación JWT via cookie HttpOnly.\nLas mutaciones (POST/PUT/DELETE) requieren el header X-CSRF-Token.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:4000/api", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"superadmin\",\n  \"password\": \"Admin1234!\"\n}"
+            },
+            "description": "Autentica al usuario. Devuelve JWT en cookie HttpOnly 'access_token' y token CSRF en cookie 'csrf_token'.\n\nRS-07: Bloqueado tras 5 intentos fallidos por 5 minutos."
+          },
+          "response": [
+            {
+              "name": "Login exitoso",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"user\": {\n    \"id\": 1,\n    \"username\": \"superadmin\",\n    \"email\": \"superadmin@sistema.com\",\n    \"role\": \"SUPERADMIN\",\n    \"permissions\": [\"VIEW_USERS\", \"CREATE_USER\", \"...\"]\n  }\n}"
+            },
+            {
+              "name": "Credenciales inválidas",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{ \"error\": \"Credenciales inválidas.\" }"
+            },
+            {
+              "name": "Bloqueado por rate limiting",
+              "status": "Too Many Requests",
+              "code": 429,
+              "body": "{ \"error\": \"Cuenta bloqueada por 5 minutos por demasiados intentos fallidos.\" }"
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/logout",
+            "header": [{ "key": "X-CSRF-Token", "value": "{{csrf_token}}" }],
+            "description": "Cierra sesión. Limpia cookies access_token y csrf_token."
+          }
+        },
+        {
+          "name": "Me (usuario actual)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/auth/me",
+            "description": "Devuelve el usuario autenticado desde el JWT. Útil para verificar que el token es válido."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Productos",
+      "item": [
+        {
+          "name": "Listar productos",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/products",
+            "description": "Requiere permiso: VIEW_PRODUCTS\nDisponible para todos los roles."
+          }
+        },
+        {
+          "name": "Obtener producto por ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/products/1",
+            "description": "Requiere permiso: VIEW_PRODUCTS"
+          }
+        },
+        {
+          "name": "Crear producto",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/products",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-CSRF-Token", "value": "{{csrf_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"PROD001\",\n  \"name\": \"Laptop HP\",\n  \"description\": \"Laptop de trabajo\",\n  \"quantity\": 10,\n  \"price\": 850.00\n}"
+            },
+            "description": "Requiere permiso: CREATE_PRODUCT\nDisponible para: SuperAdmin, Registrador\n\nRS-01: Campos validados con Prisma (prepared statements)\nRS-02: name y description escapados con express-validator\nRS-03: Requiere X-CSRF-Token"
+          },
+          "response": [
+            {
+              "name": "Producto creado",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"id\": 1,\n  \"code\": \"PROD001\",\n  \"name\": \"Laptop HP\",\n  \"description\": \"Laptop de trabajo\",\n  \"quantity\": 10,\n  \"price\": \"850.00\",\n  \"createdAt\": \"2026-01-01T00:00:00.000Z\",\n  \"updatedAt\": \"2026-01-01T00:00:00.000Z\"\n}"
+            },
+            {
+              "name": "Sin permiso (Auditor intentando crear)",
+              "status": "Forbidden",
+              "code": 403,
+              "body": "{\n  \"error\": \"Acceso denegado. Permisos insuficientes.\",\n  \"required\": [\"CREATE_PRODUCT\"]\n}"
+            },
+            {
+              "name": "Sin CSRF token",
+              "status": "Forbidden",
+              "code": 403,
+              "body": "{ \"error\": \"CSRF token inválido o ausente.\" }"
+            }
+          ]
+        },
+        {
+          "name": "Editar producto",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/products/1",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-CSRF-Token", "value": "{{csrf_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"PROD001\",\n  \"name\": \"Laptop HP Pro\",\n  \"description\": \"Actualizada\",\n  \"quantity\": 15,\n  \"price\": 950.00\n}"
+            },
+            "description": "Requiere permiso: EDIT_PRODUCT"
+          }
+        },
+        {
+          "name": "Eliminar producto",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/products/1",
+            "header": [{ "key": "X-CSRF-Token", "value": "{{csrf_token}}" }],
+            "description": "Requiere permiso: DELETE_PRODUCT"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Usuarios",
+      "item": [
+        {
+          "name": "Listar usuarios",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/users",
+            "description": "Requiere permiso: VIEW_USERS\nMuestra: username, email, rol, permisos, último login, IP de último login (RF-04)"
+          }
+        },
+        {
+          "name": "Crear usuario",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/users",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-CSRF-Token", "value": "{{csrf_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"nuevo_user\",\n  \"email\": \"nuevo@ejemplo.com\",\n  \"password\": \"Password123!\",\n  \"roleId\": 2\n}"
+            },
+            "description": "Requiere permiso: CREATE_USER\nSolo SuperAdmin.\n\nRF-02: Password se almacena con bcrypt cost=12 automáticamente.\nRF-04: Se registra en log de auditoría."
+          }
+        },
+        {
+          "name": "Editar usuario",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/users/2",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-CSRF-Token", "value": "{{csrf_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"usuario_editado\",\n  \"email\": \"editado@ejemplo.com\",\n  \"roleId\": 3\n}"
+            },
+            "description": "Requiere permiso: EDIT_USER\nCambio de rol queda registrado en auditoría como ROLE_CHANGED."
+          }
+        },
+        {
+          "name": "Eliminar usuario",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/users/2",
+            "header": [{ "key": "X-CSRF-Token", "value": "{{csrf_token}}" }],
+            "description": "Requiere permiso: DELETE_USER\nNo se puede eliminar al propio usuario."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auditoría",
+      "item": [
+        {
+          "name": "Ver logs (paginado)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/audit?page=1&limit=20&event=LOGIN",
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "event", "value": "LOGIN", "description": "Filtro opcional por nombre de evento" }
+              ]
+            },
+            "description": "Requiere permiso: VIEW_AUDIT_LOG\nSolo SuperAdmin puede ver este endpoint.\n\nRF-06: Devuelve eventos con timestamp, IP, ruta, usuario y detalles."
+          },
+          "response": [
+            {
+              "name": "Logs paginados",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"logs\": [\n    {\n      \"id\": 42,\n      \"event\": \"LOGIN_SUCCESS\",\n      \"details\": \"Login exitoso: superadmin\",\n      \"ipAddress\": \"127.0.0.1\",\n      \"path\": \"/api/auth/login\",\n      \"createdAt\": \"2026-01-01T10:00:00.000Z\",\n      \"user\": { \"username\": \"superadmin\" }\n    }\n  ],\n  \"total\": 1,\n  \"page\": 1,\n  \"limit\": 20\n}"
+            },
+            {
+              "name": "Sin permiso (Auditor)",
+              "status": "Forbidden",
+              "code": 403,
+              "body": "{ \"error\": \"Acceso denegado. Permisos insuficientes.\" }"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Roles",
+      "item": [
+        {
+          "name": "Listar roles",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/roles",
+            "description": "Requiere permiso: VIEW_ROLES\nDevuelve roles con sus permisos y conteo de usuarios."
+          }
+        },
+        {
+          "name": "Listar todos los permisos",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/roles/permissions",
+            "description": "Requiere permiso: VIEW_ROLES"
+          }
+        },
+        {
+          "name": "Actualizar permisos de un rol",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/roles/2/permissions",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-CSRF-Token", "value": "{{csrf_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permissionIds\": [1, 5]\n}"
+            },
+            "description": "Requiere permiso: MANAGE_ROLES\nSolo SuperAdmin.\nCambio registrado en auditoría como ROLE_PERMISSIONS_CHANGED."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pruebas de Seguridad (Red Team)",
+      "item": [
+        {
+          "name": "SQL Injection — Login",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"' OR '1'='1' --\",\n  \"password\": \"cualquier_cosa\"\n}"
+            },
+            "description": "ESPERADO: 401 Credenciales inválidas.\nPrisma usa prepared statements — la inyección es inofensiva."
+          }
+        },
+        {
+          "name": "JWT alg:none (RS-05)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/auth/me",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "access_token=eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJpZCI6MSwicm9sZSI6IlNVUEVSQURNSU4ifQ."
+              }
+            ],
+            "description": "ESPERADO: 401 Token inválido.\nEl servidor rechaza algoritmo 'none' explícitamente con { algorithms: ['HS256'] }."
+          }
+        },
+        {
+          "name": "RBAC — Auditor intenta crear producto",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/products",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-CSRF-Token", "value": "token_del_auditor" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"HACK01\",\n  \"name\": \"Intento de inyección\",\n  \"quantity\": 1,\n  \"price\": 0\n}"
+            },
+            "description": "ESPERADO: 403 Acceso denegado.\nEl Auditor solo tiene VIEW_PRODUCTS."
+          }
+        },
+        {
+          "name": "Sin autenticación → ruta protegida",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/users",
+            "description": "ESPERADO: 401 Autenticación requerida.\nSin cookie access_token."
+          }
+        },
+        {
+          "name": "Verificar headers de seguridad (RS-06)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/../health",
+            "description": "Verificar que la respuesta incluya:\n- Content-Security-Policy\n- X-Frame-Options: DENY\n- X-Content-Type-Options: nosniff\n- Strict-Transport-Security\n- Referrer-Policy"
+          }
+        }
+      ]
+    }
+  ]
+}

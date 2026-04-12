@@ -256,5 +256,5 @@ Todo el código fue revisado y comprendido por el equipo. Los integrantes pueden
 ---
 
 ## Autores
-Kasandra Cruz Arroyo.
-Guillermo Antonio Solórzano Ochoa.
+- Kasandra Cruz Arroyo.
+- Guillermo Antonio Solórzano Ochoa.
